@@ -1,0 +1,19 @@
+MODULES
+A #916fd7 CS342 Machine Learning
+B #667aa8 CS356 Approximation and Randomised Algorithms
+C #bedf83 CS346 Advanced Databases
+D #f6f2a1 CS325 Compiler Design
+E #fad6ca CS301 Complexity of Algorithms
+F #dd6c47 ST301 Bayesian Statistics
+
+CHUNKS
+29APR 15MAY A44 B17 C58 D45 E6
+17MAY 21MAY     B19 C10 D15 E6
+24MAY 24MAY             D8  E2
+26MAY 28MAY                 E30
+30MAY  8JUN F100
+
+DAYS
+30APR C5
+01MAY D4 A4 B4
+02MAY C4 D4 A2
