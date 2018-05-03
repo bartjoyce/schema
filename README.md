@@ -1,7 +1,7 @@
 schema
 ======
 
-![screenshot](https://raw.githubusercontent.com/bartjoyce/schema/master/data/screenshot.jpg)
+![screenshot](screenshot.jpg)
 
 ## Build
 
