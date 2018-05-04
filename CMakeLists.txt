@@ -9,6 +9,7 @@ add_subdirectory(lib/ddui)
 list(APPEND ASSETS
     ${ddui_ASSETS}
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/SFRegular.ttf
+    ${CMAKE_CURRENT_SOURCE_DIR}/assets/PTMono.ttf
     ${CMAKE_CURRENT_SOURCE_DIR}/assets/data.txt
 )
 
