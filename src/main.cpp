@@ -370,57 +370,110 @@ std::pair<char, int> read_stock(char** ch) {
     return std::make_pair(label, read_number(ch));
 }
 
-AppData parse_file(char* ch) {
+#define NEED_LINE(lineno) if (text_model.lines.size() < lineno) throw "Parse error"
+#define LINE(lineno) text_model.lines[lineno].content.get()
+#define MATCH(ch, str) if (strcmp(ch, str) != 0) throw "Parse error"
+
+AppData parse_file() {
+    TextEdit::set_style(&text_model, false, 16.0, nvgRGBA(0xff, 0xff, 0xff, 0x80));
+    
+    TextEdit::StyleCommand style;
+    style.type = TextEdit::StyleCommand::COLOR;
+    style.color_value = nvgRGB(0xff, 0xff, 0xff);
+    
+    TextEdit::Selection selection;
+
     AppData data;
 
-    read_string(&ch, "MODULES\n");
-    while (*ch != '\0' && *ch != '\n') {
+    int lineno = 0;
+
+    NEED_LINE(lineno);
+    MATCH(LINE(lineno), "MODULES");
+    selection.a_line = selection.b_line = lineno;
+    selection.a_index = 0;
+    selection.b_index = 7;
+    TextEdit::apply_style(&text_model, selection, style);
+    lineno++;
+    while (true) {
+        NEED_LINE(lineno);
+        if (LINE(lineno)[0] == '\0') {
+            break;
+        }
+        
+        auto ch = LINE(lineno);
         char label = *ch++;
         eat_spaces(&ch);
         
         auto color = read_color(&ch);
         eat_spaces(&ch);
         
-        char* module_name = read_until(&ch, '\n');
+        char* module_name = read_until(&ch, '\0');
         data.module_names.insert(std::make_pair(label, module_name));
         data.module_colors.insert(std::make_pair(label, color));
+        
+        lineno++;
     }
     
-    read_string(&ch, "\nCHUNKS\n");
-    while (*ch != '\0' && *ch != '\n') {
-        Chunk chunk;
+    lineno++;
+    NEED_LINE(lineno);
+    MATCH(LINE(lineno), "CHUNKS");
+    selection.a_line = selection.b_line = lineno;
+    selection.a_index = 0;
+    selection.b_index = 6;
+    TextEdit::apply_style(&text_model, selection, style);
+    lineno++;
+    while (true) {
+        NEED_LINE(lineno);
+        if (LINE(lineno)[0] == '\0') {
+            break;
+        }
         
+        auto ch = LINE(lineno);
+    
+        Chunk chunk;
+
         chunk.start_date = read_date(&ch);
         eat_spaces(&ch);
-        
+
         chunk.end_date = read_date(&ch);
         eat_spaces(&ch);
-        
-        while (*ch != '\0' && *ch != '\n') {
+
+        while (*ch != '\0') {
             chunk.stock.push_back(read_stock(&ch));
             eat_spaces(&ch);
         }
-        
+
         data.chunks.push_back(std::move(chunk));
-        
-        if (*ch == '\n') ++ch;
+
+        lineno++;
     }
+
+    lineno++;
+    NEED_LINE(lineno);
+    MATCH(LINE(lineno), "DAYS");
+    selection.a_line = selection.b_line = lineno;
+    selection.a_index = 0;
+    selection.b_index = 4;
+    TextEdit::apply_style(&text_model, selection, style);
+    lineno++;
+    for (; lineno < text_model.lines.size(); lineno++) {
+        if (LINE(lineno)[0] == '\0') {
+            break;
+        }
+        
+        auto ch = LINE(lineno);
     
-    read_string(&ch, "\nDAYS\n");
-    while (*ch != '\0' && *ch != '\n') {
         Day day;
-    
+
         int date = read_date(&ch);
         eat_spaces(&ch);
-        
+
         while (*ch != '\0' && *ch != '\n') {
             day.stock.push_back(read_stock(&ch));
             eat_spaces(&ch);
         }
-        
+
         data.days.insert(std::make_pair(date, std::move(day)));
-        
-        if (*ch == '\n') ++ch;
     }
     
     return data;
@@ -434,7 +487,6 @@ int main(int argc, const char** argv) {
     app::load_font_face("mono", "assets/PTMono.ttf");
     
     char* buffer = read_data_file();
-    data = parse_file(buffer);
     
     text_model.regular_font = "mono";
     text_model.bold_font = "mono";
@@ -466,23 +518,14 @@ int main(int argc, const char** argv) {
         }
         
         {
+            try {
+                auto new_data = parse_file();
+                data = new_data;
+            } catch (const char* ex) { }
+        
             auto child_ctx = child_context(ctx, ctx.width * ratio, 0, ctx.width * (1.0 - ratio), ctx.height);
             PlainTextBox::update(&text_state, child_ctx);
             nvgRestore(ctx.vg);
-            
-            TextEdit::Selection select_all = { 0 };
-            select_all.b_line = text_model.lines.size() - 1;
-            select_all.b_index = text_model.lines.back().characters.size();
-            auto ptr = TextEdit::get_text_content(&text_model, select_all);
-            auto content = ptr.release();
-            try {
-                auto new_data = parse_file(content);
-                printf("Success\n");
-                data = new_data;
-            } catch (const char* ex) {
-                printf("%s\n", ex);
-            }
-            delete[] content;
         }
     });
 
