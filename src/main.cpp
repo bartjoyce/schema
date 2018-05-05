@@ -42,9 +42,8 @@ static ScrollArea::ScrollAreaState scroll_area_2;
 static TextEdit::Model text_model;
 static PlainTextBox::PlainTextBoxState text_state;
 
-char DATE_TEMP[20];
 const char* DAY_NAMES[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-const char* date_string(int from, int to) {
+void date_string(char* dst, int from, int to) {
     auto day1 = DAY_NAMES[from % 7];
     auto month1 = from <= 1 ? "Apr"     : from <= 32 ? "May"    : "Jun";
     auto date1  = from <= 1 ? from + 29 : from <= 32 ? from - 1 : from - 32;
@@ -54,19 +53,17 @@ const char* date_string(int from, int to) {
     auto date2  = to <= 1 ? to + 29 : to <= 32 ? to - 1 : to - 32;
     
     if (from != to) {
-        sprintf(DATE_TEMP, "%s %s %d – %s %s %d", day1, month1, date1, day2, month2, date2);
+        sprintf(dst, "%s %s %d – %s %s %d", day1, month1, date1, day2, month2, date2);
     } else {
-        sprintf(DATE_TEMP, "%s %s %d", day1, month1, date1);
+        sprintf(dst, "%s %s %d", day1, month1, date1);
     }
-    return DATE_TEMP;
 }
 
 void update(Context ctx) {
 
-    auto selection = NO_SELECTION;
-    int selected_date_from = -1;
-    int selected_date_to = -1;
-    char selected_module = '\0';
+    char context_line_1[64];
+    char context_line_2[64];
+    context_line_1[0] = context_line_2[0] = '\0';
 
     int OUTER_MARGIN = 10;
     int BIG_SPACING = 8;
@@ -80,18 +77,6 @@ void update(Context ctx) {
     y = OUTER_MARGIN;
 
     nvgFontFace(ctx.vg, "regular");
-    
-    // Header text space
-    auto header_saved_y = y;
-    nvgFontSize(ctx.vg, 16.0);
-    nvgTextMetrics(ctx.vg, &ascender, &descender, &line_height);
-    y += line_height;
-    
-    nvgFontSize(ctx.vg, 20.0);
-    nvgTextMetrics(ctx.vg, &ascender, &descender, &line_height);
-    y += line_height;
-    
-    y += BIG_SPACING;
     
     // Revision Schedule
     nvgFillColor(ctx.vg, nvgRGBA(0xff, 0xff, 0xff, 0x80));
@@ -108,48 +93,70 @@ void update(Context ctx) {
         auto i = 0;
         
         for (auto& pair : chunk.stock) {
-            nvgFillColor(ctx.vg, data.module_colors[pair.first]);
-            auto amount = pair.second;
-            
-            if (i > 0) {
-                int blocks = amount > MAX_Y_BLOCKS - i ? MAX_Y_BLOCKS - i : amount;
-                if (mouse_over(ctx, x2, y + i * BLOCK_SIZE, BLOCK_SIZE + BLOCK_SPACING, blocks * BLOCK_SIZE)) {
-                    *ctx.cursor = CURSOR_POINTING_HAND;
-                    selection = SELECTION_STOCK;
-                    selected_date_from = chunk.start_date;
-                    selected_date_to = chunk.end_date;
-                    selected_module = pair.first;
-                }
-                nvgBeginPath(ctx.vg);
-                nvgRect(ctx.vg, x2, y + i * BLOCK_SIZE, BLOCK_SIZE, blocks * BLOCK_SIZE - BLOCK_SPACING);
-                nvgFill(ctx.vg);
-                i += blocks;
-                amount -= blocks;
-                if (i >= MAX_Y_BLOCKS) {
-                    i = 0;
-                    x2 += BLOCK_SIZE + BLOCK_SPACING;
-                }
-            }
-            
-            while (amount > 0) {
-                int blocks = amount > MAX_Y_BLOCKS ? MAX_Y_BLOCKS : amount;
-                if (mouse_over(ctx, x2, y, BLOCK_SIZE + BLOCK_SPACING, blocks * BLOCK_SIZE)) {
-                    *ctx.cursor = CURSOR_POINTING_HAND;
-                    selection = SELECTION_STOCK;
-                    selected_date_from = chunk.start_date;
-                    selected_date_to = chunk.end_date;
-                    selected_module = pair.first;
-                }
-                nvgBeginPath(ctx.vg);
-                nvgRect(ctx.vg, x2, y, BLOCK_SIZE, blocks * BLOCK_SIZE - BLOCK_SPACING);
-                nvgFill(ctx.vg);
-                amount -= blocks;
-                if (blocks < MAX_Y_BLOCKS) {
+        
+            auto draw_stock = [&]() {
+                bool selected = false;
+                
+                int amount = pair.second;
+                
+                if (i > 0) {
+                    int blocks = amount > MAX_Y_BLOCKS - i ? MAX_Y_BLOCKS - i : amount;
+                    if (mouse_over(ctx, x2, y + i * BLOCK_SIZE, BLOCK_SIZE + BLOCK_SPACING, blocks * BLOCK_SIZE)) {
+                        selected = true;
+                    }
+                    nvgBeginPath(ctx.vg);
+                    nvgRect(ctx.vg, x2, y + i * BLOCK_SIZE, BLOCK_SIZE, blocks * BLOCK_SIZE - BLOCK_SPACING);
+                    nvgFill(ctx.vg);
                     i += blocks;
-                } else {
-                    x2 += BLOCK_SIZE + BLOCK_SPACING;
+                    amount -= blocks;
+                    if (i >= MAX_Y_BLOCKS) {
+                        i = 0;
+                        x2 += BLOCK_SIZE + BLOCK_SPACING;
+                    }
                 }
+
+                while (amount > 0) {
+                    int blocks = amount > MAX_Y_BLOCKS ? MAX_Y_BLOCKS : amount;
+                    if (mouse_over(ctx, x2, y, BLOCK_SIZE + BLOCK_SPACING, blocks * BLOCK_SIZE)) {
+                        selected = true;
+                    }
+                    nvgBeginPath(ctx.vg);
+                    nvgRect(ctx.vg, x2, y, BLOCK_SIZE, blocks * BLOCK_SIZE - BLOCK_SPACING);
+                    nvgFill(ctx.vg);
+                    amount -= blocks;
+                    if (blocks < MAX_Y_BLOCKS) {
+                        i += blocks;
+                    } else {
+                        x2 += BLOCK_SIZE + BLOCK_SPACING;
+                    }
+                }
+
+                return selected;
+            };
+        
+            nvgFillColor(ctx.vg, data.module_colors[pair.first]);
+            
+            int old_i = i;
+            int old_x2 = x2;
+            if (draw_stock()) {
+                *ctx.cursor = CURSOR_POINTING_HAND;
+                date_string(context_line_2, chunk.start_date, chunk.end_date);
+                if (pair.second % 2 == 0) {
+                    sprintf(context_line_1, "%s – %dh", context_line_2, pair.second / 2);
+                } else if (pair.second == 1) {
+                    sprintf(context_line_1, "%s – 30m", context_line_2);
+                } else {
+                    sprintf(context_line_1, "%s – %dh30m", context_line_2, pair.second / 2);
+                }
+                strcpy(context_line_2, data.module_names[pair.first]);
+            
+                i = old_i;
+                x2 = old_x2;
+                
+                nvgFillColor(ctx.vg, nvgRGBA(0x00, 0x00, 0x00, 0x80));
+                draw_stock();
             }
+            
         }
     }
     
@@ -172,16 +179,29 @@ void update(Context ctx) {
         int i = 0;
         
         for (auto& pair2 : pair.second.stock) {
-            if (mouse_over(ctx, x2, y + i * BLOCK_SIZE, BLOCK_SIZE + BLOCK_SPACING, pair2.second * BLOCK_SIZE)) {
-                *ctx.cursor = CURSOR_POINTING_HAND;
-                selection = SELECTION_SECTION;
-                selected_date_from = selected_date_to = pair.first;
-                selected_module = pair2.first;
-            }
             nvgFillColor(ctx.vg, data.module_colors[pair2.first]);
             nvgBeginPath(ctx.vg);
             nvgRect(ctx.vg, x2, y + i * BLOCK_SIZE, BLOCK_SIZE, pair2.second * BLOCK_SIZE - BLOCK_SPACING);
             nvgFill(ctx.vg);
+            
+            if (mouse_over(ctx, x2, y + i * BLOCK_SIZE, BLOCK_SIZE + BLOCK_SPACING, pair2.second * BLOCK_SIZE)) {
+                *ctx.cursor = CURSOR_POINTING_HAND;
+                date_string(context_line_2, pair.first, pair.first);
+                if (pair2.second % 2 == 0) {
+                    sprintf(context_line_1, "%s – %dh", context_line_2, pair2.second / 2);
+                } else if (pair2.second == 1) {
+                    sprintf(context_line_1, "%s – 30m", context_line_2);
+                } else {
+                    sprintf(context_line_1, "%s – %dh30m", context_line_2, pair2.second / 2);
+                }
+                strcpy(context_line_2, data.module_names[pair2.first]);
+                
+                nvgFillColor(ctx.vg, nvgRGBA(0x00, 0x00, 0x00, 0x80));
+                nvgBeginPath(ctx.vg);
+                nvgRect(ctx.vg, x2, y + i * BLOCK_SIZE, BLOCK_SIZE, pair2.second * BLOCK_SIZE - BLOCK_SPACING);
+                nvgFill(ctx.vg);
+            }
+            
             i += pair2.second;
         }
         
@@ -211,8 +231,7 @@ void update(Context ctx) {
     
         if (mouse_over(ctx, 0, y, ctx.width, line_height)) {
             *ctx.cursor = CURSOR_POINTING_HAND;
-            selection = SELECTION_MODULE;
-            selected_module = pair.first;
+            strcpy(context_line_2, data.module_names[pair.first]);
             nvgFillColor(ctx.vg, nvgRGB(0xff, 0xff, 0xff));
         } else {
             nvgFillColor(ctx.vg, nvgRGBA(0xff, 0xff, 0xff, 0x80));
@@ -222,35 +241,61 @@ void update(Context ctx) {
         y += line_height;
     }
     
-    // Draw selection
-    switch (selection) {
-        case NO_SELECTION:
-            break;
-        case SELECTION_MODULE:
-            break;
-        case SELECTION_STOCK:
-            break;
-        case SELECTION_SECTION:
-            break;
-    }
+    // Context overlay
+    if (context_line_1[0] || context_line_2[0]) {
+        int width = 0, height = 0;
+        int line_1_y, line_2_y;
+        
+        height += SMALL_SPACING;
+        
+        if (context_line_1[0]) {
+            float bounds[4];
+            nvgFontSize(ctx.vg, 16.0);
+            nvgTextMetrics(ctx.vg, &ascender, &descender, &line_height);
+            nvgTextBounds(ctx.vg, 0, 0, context_line_1, NULL, bounds);
+            
+            line_1_y = height + ascender;
+            width = width < bounds[2] ? bounds[2] : width;
+            height += line_height + SMALL_SPACING;
+        }
+        
+        if (context_line_2[0]) {
+            float bounds[4];
+            nvgFontSize(ctx.vg, 20.0);
+            nvgTextMetrics(ctx.vg, &ascender, &descender, &line_height);
+            nvgTextBounds(ctx.vg, 0, 0, context_line_2, NULL, bounds);
+            
+            line_2_y = height + ascender;
+            width = width < bounds[2] ? bounds[2] : width;
+            height += line_height + SMALL_SPACING;
+        }
+        
+        width += 2 * SMALL_SPACING;
+        
+        int x = ctx.mouse->x - ctx.x + 5;
+        int y = ctx.mouse->y - ctx.y + 10;
+        
+        if (x + width > ctx.width) {
+            x = ctx.width - width;
+        }
     
-    // Header text
-    y = header_saved_y;
-    nvgFillColor(ctx.vg, nvgRGB(0xff, 0xff, 0xff));
-    
-    nvgFontSize(ctx.vg, 16.0);
-    nvgTextMetrics(ctx.vg, &ascender, &descender, &line_height);
-    if (selected_date_from != -1) {
-        nvgText(ctx.vg, x, y + ascender, date_string(selected_date_from, selected_date_to), NULL);
+        nvgFillColor(ctx.vg, nvgRGBA(0x00, 0x00, 0x00, 0xbb));
+        nvgBeginPath(ctx.vg);
+        nvgRect(ctx.vg, x, y, width, height);
+        nvgFill(ctx.vg);
+        
+        nvgFillColor(ctx.vg, nvgRGB(0xff, 0xff, 0xff));
+        
+        if (context_line_1[0]) {
+            nvgFontSize(ctx.vg, 16.0);
+            nvgText(ctx.vg, x + SMALL_SPACING, y + line_1_y, context_line_1, NULL);
+        }
+        
+        if (context_line_2[0]) {
+            nvgFontSize(ctx.vg, 20.0);
+            nvgText(ctx.vg, x + SMALL_SPACING, y + line_2_y, context_line_2, NULL);
+        }
     }
-    y += line_height;
-    
-    nvgFontSize(ctx.vg, 20.0);
-    nvgTextMetrics(ctx.vg, &ascender, &descender, &line_height);
-    if (selected_module != '\0') {
-        nvgText(ctx.vg, x, y + ascender, data.module_names[selected_module], NULL);
-    }
-    y += line_height;
     
 }
 
@@ -437,6 +482,8 @@ AppData parse_file() {
 
         chunk.end_date = read_date(&ch);
         eat_spaces(&ch);
+        
+        printf("%d %d\n", chunk.start_date, chunk.end_date);
 
         while (*ch != '\0') {
             chunk.stock.push_back(read_stock(&ch));
@@ -479,6 +526,8 @@ AppData parse_file() {
     return data;
 }
 
+static std::unique_ptr<char[]> old_str;
+
 int main(int argc, const char** argv) {
 
     app::init("Schema");
@@ -487,6 +536,10 @@ int main(int argc, const char** argv) {
     app::load_font_face("mono", "assets/PTMono.ttf");
     
     char* buffer = read_data_file();
+    
+    auto empty = new char[1];
+    empty[0] = '\0';
+    old_str = std::unique_ptr<char[]>(empty);
     
     text_model.regular_font = "mono";
     text_model.bold_font = "mono";
@@ -509,7 +562,7 @@ int main(int argc, const char** argv) {
         nvgRect(ctx.vg, 0, 0, ctx.width, ctx.height);
         nvgFill(ctx.vg);
         
-        float ratio = 0.64;
+        float ratio =1;
         
         {
             auto child_ctx = child_context(ctx, 0, 0, ctx.width * ratio, ctx.height);
@@ -518,10 +571,19 @@ int main(int argc, const char** argv) {
         }
         
         {
-            try {
-                auto new_data = parse_file();
-                data = new_data;
-            } catch (const char* ex) { }
+            TextEdit::Selection select_all = { 0 };
+            select_all.b_line = text_model.lines.size() - 1;
+            select_all.b_index = text_model.lines.back().characters.size();
+            auto new_str = TextEdit::get_text_content(&text_model, select_all);
+            
+            if (strcmp(old_str.get(), new_str.get()) != 0) {
+                old_str = std::move(new_str);
+                try {
+                    auto new_data = parse_file();
+                    data = new_data;
+                } catch (const char* ex) { }
+                *ctx.must_repaint = true;
+            }
         
             auto child_ctx = child_context(ctx, ctx.width * ratio, 0, ctx.width * (1.0 - ratio), ctx.height);
             PlainTextBox::update(&text_state, child_ctx);
