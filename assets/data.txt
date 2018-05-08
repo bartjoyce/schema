@@ -1,10 +1,10 @@
 MODULES
-A #916fd7 CS342 Machine Learning
-B #667aa8 CS356 Approximation and Randomised Algorithms
-C #bedf83 CS346 Advanced Databases
-D #f6f2a1 CS325 Compiler Design
-E #fad6ca CS301 Complexity of Algorithms
-F #dd6c47 ST301 Bayesian Statistics
+A #875ad9 CS342 Machine Learning
+B #5571ab CS356 Approximation and Randomised Algorithms
+C #bae06f CS346 Advanced Databases
+D #f7f28f CS325 Compiler Design
+E #fad4c7 CS301 Complexity of Algorithms
+F #de6537 ST301 Bayesian Statistics
 
 CHUNKS
 29APR 15MAY A44 B17 C58 D45 E6
@@ -19,3 +19,6 @@ DAYS
 02MAY C4 D4 A2
 03MAY D4 C4 A2
 04MAY A4 C4 D4
+05MAY C4
+06MAY D6 B4 A2
+07MAY A4 D4

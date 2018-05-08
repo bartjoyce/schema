@@ -1,4 +1,7 @@
 list(APPEND SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/model.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/readfile.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/readfile.cpp
 )
 set(SOURCES ${SOURCES} PARENT_SCOPE)
